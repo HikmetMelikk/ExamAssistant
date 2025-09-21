@@ -1,90 +1,130 @@
-import React, {useState, useEffect} from 'react';
-import {SafeAreaView, StyleSheet, StatusBar} from 'react-native';
-import OnboardingScreen from './src/components/OnboardingScreen';
-import LoginScreen from './src/components/LoginScreen';
-import RegisterScreen from './src/components/RegisterScreen';
-import DashboardScreen from './src/components/DashboardScreen';
-import {AuthProvider, useAuth} from './src/contexts/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import React, { useEffect, useState } from 'react';
+import { StatusBar, StyleSheet, View } from 'react-native';
+import DashboardScreen from './src/components/DashboardScreen';
+import ExamInputScreen from './src/components/ExamInputScreen';
+import Icon from './src/components/Icons';
+import LoginScreen from './src/components/LoginScreen';
+import OnboardingScreen from './src/components/OnboardingScreen';
+import PomodoroScreen from './src/components/PomodoroScreen';
+import RegisterScreen from './src/components/RegisterScreen';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 
-type Screen = 'onboarding' | 'login' | 'register' | 'dashboard';
+type RootStackParamList = {
+  Dashboard: undefined;
+  ExamInput: undefined;
+  Pomodoro: undefined;
+  Login: undefined;
+  Register: undefined;
+  Onboarding: undefined;
+};
+
+const Stack = createStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator();
+
+function HomeStackNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{headerShown: false}}>
+      <Stack.Screen name="Dashboard" component={DashboardScreen} />
+      <Stack.Screen name="ExamInput" component={ExamInputScreen} /> 
+    </Stack.Navigator>
+  );
+}
 
 function AppContent() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('onboarding');
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
   const {user, isLoading} = useAuth();
 
   useEffect(() => {
-    checkOnboardingStatus();
-  }, []);
-
-  const checkOnboardingStatus = async () => {
-    try {
-      const onboardingCompleted = await AsyncStorage.getItem('onboarding_completed');
-      if (onboardingCompleted) {
-        setHasSeenOnboarding(true);
-        setCurrentScreen('login');
+    (async () => {
+      try {
+        const onboardingCompleted = await AsyncStorage.getItem('onboarding_completed');
+        if (onboardingCompleted) {
+          setHasSeenOnboarding(true);
+        }
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
       }
-    } catch (error) {
-      console.error('Error checking onboarding status:', error);
-    }
-  };
+    })();
+  }, []);
 
   const handleOnboardingComplete = async () => {
     try {
       await AsyncStorage.setItem('onboarding_completed', 'true');
       setHasSeenOnboarding(true);
-      setCurrentScreen('login');
     } catch (error) {
       console.error('Error saving onboarding status:', error);
-      setCurrentScreen('login');
+      setHasSeenOnboarding(true);
     }
   };
 
   if (isLoading) {
-    return <SafeAreaView style={styles.container} />;
+    return <View style={styles.container} />;
   }
 
-  // Kullanıcı giriş yapmışsa dashboard'a yönlendir
-  if (user) {
-    return <DashboardScreen />;
-  }
-
-  // Onboarding tamamlanmışsa ve kullanıcı yoksa login/register ekranlarını göster
-  if (hasSeenOnboarding) {
-    switch (currentScreen) {
-      case 'login':
-        return (
-          <LoginScreen 
-            onSwitchToRegister={() => setCurrentScreen('register')}
+  return (
+    <NavigationContainer>
+      {!hasSeenOnboarding ? (
+        <Stack.Navigator screenOptions={{headerShown: false}}>
+          <Stack.Screen name="Onboarding">
+            {() => <OnboardingScreen onComplete={handleOnboardingComplete} />}
+          </Stack.Screen>
+        </Stack.Navigator>
+      ) : user ? (
+        <Tab.Navigator
+          screenOptions={{
+            headerShown: false,
+            tabBarActiveTintColor: '#4285F4',
+            tabBarStyle: { backgroundColor: '#FFFFFF' },
+          }}
+        >
+          <Tab.Screen 
+            name="Ana Sayfa" 
+            component={HomeStackNavigator}
+            options={{
+              tabBarIcon: ({ color, size }) => (
+                <Icon name="home" color={color} size={size || 22} />
+              ),
+            }}
           />
-        );
-      case 'register':
-        return (
-          <RegisterScreen 
-            onSwitchToLogin={() => setCurrentScreen('login')}
+          <Tab.Screen 
+            name="Pomodoro" 
+            component={PomodoroScreen}
+            options={{
+              tabBarIcon: ({ color, size }) => (
+                <Icon name="timer" color={color} size={size || 22} />
+              ),
+            }}
           />
-        );
-      default:
-        return (
-          <LoginScreen 
-            onSwitchToRegister={() => setCurrentScreen('register')}
-          />
-        );
-    }
-  }
-
-  // Onboarding göster
-  return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+        </Tab.Navigator>
+      ) : (
+        <Stack.Navigator screenOptions={{headerShown: false}}>
+          <Stack.Screen name="Login">
+            {({navigation}) => (
+              <LoginScreen onSwitchToRegister={() => navigation.navigate('Register')} />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="Register">
+            {({navigation}) => (
+              <RegisterScreen onSwitchToLogin={() => navigation.navigate('Login')} />
+            )}
+          </Stack.Screen>
+        </Stack.Navigator>
+      )}
+    </NavigationContainer>
+  );
 }
 
 function App(): React.JSX.Element {
   return (
     <AuthProvider>
       <StatusBar barStyle="dark-content" backgroundColor="#F8F9FA" />
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <AppContent />
-      </SafeAreaView>
+      </View>
     </AuthProvider>
   );
 }

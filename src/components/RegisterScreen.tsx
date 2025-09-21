@@ -13,9 +13,9 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Icon from './Icons';
 import {useAuth} from '../contexts/AuthContext';
-import {ExamType, AYTField} from '../types';
+import { AYTField, ExamType } from '../types';
 
 interface RegisterScreenProps {
   onSwitchToLogin: () => void;
@@ -27,8 +27,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({onSwitchToLogin}) => {
     email: '',
     password: '',
     confirmPassword: '',
-    examType: ExamType.TYT,
-    aytField: undefined as AYTField | undefined,
   });
 
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -37,13 +35,18 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({onSwitchToLogin}) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const {register} = useAuth();
+  const [selectedField, setSelectedField] = useState<AYTField | undefined>(undefined);
 
-  const aytFields = [
-    {key: AYTField.SAYISAL, label: 'Sayısal', icon: 'functions'},
-    {key: AYTField.ESIT_AGIRLIK, label: 'Eşit Ağırlık', icon: 'balance'},
-    {key: AYTField.SOZEL, label: 'Sözel', icon: 'book'},
-    {key: AYTField.DIL, label: 'Dil', icon: 'language'},
-  ];
+  const getPasswordStrength = (pwd: string) => {
+    let score = 0;
+    if (pwd.length >= 6) score++;
+    if (pwd.length >= 10) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    return Math.min(score, 4); // 0-4
+  };
+  const strength = getPasswordStrength(formData.password);
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
@@ -72,9 +75,10 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({onSwitchToLogin}) => {
       newErrors.confirmPassword = 'Şifreler eşleşmiyor';
     }
 
-    if (formData.examType === ExamType.AYT && !formData.aytField) {
-      newErrors.aytField = 'AYT alanı seçiniz';
+    if (!selectedField) {
+      newErrors.aytField = 'Alan seçimi zorunludur';
     }
+
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -89,8 +93,9 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({onSwitchToLogin}) => {
         name: formData.name.trim(),
         email: formData.email.trim(),
         password: formData.password,
-        examType: formData.examType,
-        ...(formData.examType === ExamType.AYT && {aytField: formData.aytField}),
+        // Her öğrenci TYT'ye girer; alan seçimi AYT içindir
+        examType: ExamType.AYT,
+        aytField: selectedField,
       };
 
       await register(registerData);
@@ -201,6 +206,16 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({onSwitchToLogin}) => {
                   />
                 </TouchableOpacity>
               </View>
+              {/* Güç göstergesi */}
+              <View style={styles.strengthContainer}>
+                <View style={[styles.strengthBar, strength >= 1 ? styles.strengthWeak : styles.strengthInactive]} />
+                <View style={[styles.strengthBar, strength >= 2 ? styles.strengthFair : styles.strengthInactive]} />
+                <View style={[styles.strengthBar, strength >= 3 ? styles.strengthGood : styles.strengthInactive]} />
+                <View style={[styles.strengthBar, strength >= 4 ? styles.strengthStrong : styles.strengthInactive]} />
+                <Text style={styles.strengthLabel}>
+                  {strength <= 1 ? 'Zayıf' : strength === 2 ? 'Orta' : strength === 3 ? 'İyi' : 'Güçlü'}
+                </Text>
+              </View>
               {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
             </View>
 
@@ -234,86 +249,40 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({onSwitchToLogin}) => {
               {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
             </View>
 
-            {/* Sınav Türü */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Sınav Türü</Text>
-              <View style={styles.examTypeContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.examTypeButton,
-                    formData.examType === ExamType.TYT && styles.examTypeButtonActive,
-                  ]}
-                  onPress={() => {
-                    updateFormData('examType', ExamType.TYT);
-                    updateFormData('aytField', undefined);
-                  }}>
-                  <Icon
-                    name="school"
-                    size={20}
-                    color={formData.examType === ExamType.TYT ? '#FFFFFF' : '#4285F4'}
-                  />
-                  <Text
+            {/* AYT Alanı Seçimi */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.sectionLabel}>Alan Seçimi</Text>
+              <View style={styles.fieldChips}>
+                {[
+                  { key: AYTField.SAYISAL, label: 'Sayısal', icon: 'functions' },
+                  { key: AYTField.ESIT_AGIRLIK, label: 'Eşit Ağırlık', icon: 'balance' },
+                  { key: AYTField.SOZEL, label: 'Sözel', icon: 'book' },
+                  { key: AYTField.DIL, label: 'Dil', icon: 'language' },
+                ].map(opt => (
+                  <TouchableOpacity
+                    key={opt.key}
                     style={[
-                      styles.examTypeText,
-                      formData.examType === ExamType.TYT && styles.examTypeTextActive,
+                      styles.fieldChip,
+                      selectedField === opt.key && styles.fieldChipActive,
+                    ]}
+                    onPress={() => setSelectedField(opt.key)}
+                  >
+                    <Icon
+                      name={opt.icon}
+                      size={16}
+                      color={selectedField === opt.key ? '#FFFFFF' : '#4285F4'}
+                    />
+                    <Text style={[
+                      styles.fieldChipText,
+                      selectedField === opt.key && styles.fieldChipTextActive,
                     ]}>
-                    TYT
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.examTypeButton,
-                    formData.examType === ExamType.AYT && styles.examTypeButtonActive,
-                  ]}
-                  onPress={() => updateFormData('examType', ExamType.AYT)}>
-                  <Icon
-                    name="trending-up"
-                    size={20}
-                    color={formData.examType === ExamType.AYT ? '#FFFFFF' : '#4285F4'}
-                  />
-                  <Text
-                    style={[
-                      styles.examTypeText,
-                      formData.examType === ExamType.AYT && styles.examTypeTextActive,
-                    ]}>
-                    AYT
-                  </Text>
-                </TouchableOpacity>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
+              {errors.aytField && <Text style={styles.errorText}>{errors.aytField}</Text>}
             </View>
-
-            {/* AYT Alanı (AYT seçilmişse göster) */}
-            {formData.examType === ExamType.AYT && (
-              <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>AYT Alanı</Text>
-                <View style={styles.aytFieldContainer}>
-                  {aytFields.map((field) => (
-                    <TouchableOpacity
-                      key={field.key}
-                      style={[
-                        styles.aytFieldButton,
-                        formData.aytField === field.key && styles.aytFieldButtonActive,
-                      ]}
-                      onPress={() => updateFormData('aytField', field.key)}>
-                      <Icon
-                        name={field.icon}
-                        size={16}
-                        color={formData.aytField === field.key ? '#FFFFFF' : '#4285F4'}
-                      />
-                      <Text
-                        style={[
-                          styles.aytFieldText,
-                          formData.aytField === field.key && styles.aytFieldTextActive,
-                        ]}>
-                        {field.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                {errors.aytField && <Text style={styles.errorText}>{errors.aytField}</Text>}
-              </View>
-            )}
 
             <TouchableOpacity
               style={[styles.registerButton, isLoading && styles.registerButtonDisabled]}
@@ -378,6 +347,12 @@ const styles = StyleSheet.create({
   form: {
     paddingBottom: 20,
   },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 12,
+  },
   inputContainer: {
     marginBottom: 20,
   },
@@ -413,6 +388,31 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#EF4444',
   },
+  strengthContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginLeft: 4,
+  },
+  strengthBar: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E5E7EB',
+  },
+  strengthInactive: {
+    backgroundColor: '#E5E7EB',
+  },
+  strengthWeak: { backgroundColor: '#EF4444' },
+  strengthFair: { backgroundColor: '#F59E0B' },
+  strengthGood: { backgroundColor: '#10B981' },
+  strengthStrong: { backgroundColor: '#3B82F6' },
+  strengthLabel: {
+    fontSize: 12,
+    color: '#666666',
+    marginLeft: 6,
+  },
   eyeIcon: {
     position: 'absolute',
     right: 16,
@@ -424,68 +424,31 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginLeft: 4,
   },
-  sectionContainer: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 16,
-  },
-  examTypeContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  examTypeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#4285F4',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  examTypeButtonActive: {
-    backgroundColor: '#4285F4',
-  },
-  examTypeText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4285F4',
-  },
-  examTypeTextActive: {
-    color: '#FFFFFF',
-  },
-  aytFieldContainer: {
+  fieldChips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  aytFieldButton: {
+  fieldChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#4285F4',
     borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 6,
   },
-  aytFieldButtonActive: {
+  fieldChipActive: {
     backgroundColor: '#4285F4',
   },
-  aytFieldText: {
+  fieldChipText: {
     fontSize: 14,
     fontWeight: '500',
     color: '#4285F4',
   },
-  aytFieldTextActive: {
+  fieldChipTextActive: {
     color: '#FFFFFF',
   },
   registerButton: {

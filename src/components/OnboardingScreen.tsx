@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useRef} from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Icon from './Icons';
 
 const {width} = Dimensions.get('window');
 
@@ -54,10 +54,16 @@ const slides: Slide[] = [
 
 const OnboardingScreen: React.FC<OnboardingScreenProps> = ({onComplete}) => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const nextSlide = () => {
     if (currentSlide < slides.length - 1) {
-      setCurrentSlide(currentSlide + 1);
+      const nextIndex = currentSlide + 1;
+      setCurrentSlide(nextIndex);
+      scrollViewRef.current?.scrollTo({
+        x: nextIndex * width,
+        animated: true,
+      });
     } else {
       onComplete();
     }
@@ -65,12 +71,21 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({onComplete}) => {
 
   const prevSlide = () => {
     if (currentSlide > 0) {
-      setCurrentSlide(currentSlide - 1);
+      const prevIndex = currentSlide - 1;
+      setCurrentSlide(prevIndex);
+      scrollViewRef.current?.scrollTo({
+        x: prevIndex * width,
+        animated: true,
+      });
     }
   };
 
   const goToSlide = (index: number) => {
     setCurrentSlide(index);
+    scrollViewRef.current?.scrollTo({
+      x: index * width,
+      animated: true,
+    });
   };
 
   return (
@@ -87,6 +102,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({onComplete}) => {
 
       <View style={styles.slideContainer}>
         <ScrollView
+          ref={scrollViewRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
